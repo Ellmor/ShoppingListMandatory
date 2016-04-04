@@ -1,8 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    <item android:id="@+id/action_settings"
-        android:title="@string/action_settings"
-        android:orderInCategory="100"
+    <item
+        android:id="@+id/item_delete"
+        android:icon="@android:drawable/ic_menu_delete"
+        android:orderInCategory="1"
+        android:title="Delete"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/item_refresh"
+        android:orderInCategory="2"
+        android:title="Refresh"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_settings"
+        android:orderInCategory="3"
+        android:title="@string/action_settings"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/item_about"
+        android:icon="@android:drawable/ic_menu_info_details"
+        android:orderInCategory="4"
+        android:title="About"
+        app:showAsAction="never" />
+
+
 </menu>

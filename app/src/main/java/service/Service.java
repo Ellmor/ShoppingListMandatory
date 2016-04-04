@@ -8,12 +8,14 @@ import model.ShoppingItem;
 public class Service {
     private static Service instance;
 
-    ArrayList<ShoppingItem> items;
+    ArrayList<ShoppingItem> items,deleted;
+
     ArrayList<ProductType> productTypes;
 
     private Service() {
         //Initialize
         items = new ArrayList<>();
+        deleted = new ArrayList<>();
         productTypes = new ArrayList<>();
         //Insert data
         //ProductTypes

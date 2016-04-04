@@ -8,4 +8,15 @@
 
     <string name="signin">Sign in</string>
     <string name="cancel">Cancel</string>
+
+    <string-array name="gender_values">
+        <item>male</item>
+        <item>female</item>
+    </string-array>
+
+    <string-array name="gender_type">
+        <item>Male</item>
+        <item>Female</item>
+    </string-array>
+
 </resources>

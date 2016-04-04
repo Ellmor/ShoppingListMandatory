@@ -1,8 +1,14 @@
 package com.example.nezi2.shoppinglist;
 
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.DialogFragment;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -19,6 +25,7 @@ import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 
@@ -29,6 +36,7 @@ import service.ShoppingListArrayAdapter;
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, LoginDialogFragment.OnLoginDialogListener {
 
+    private CoordinatorLayout coordinatorLayout;
     ListView listView;
     private ShoppingListArrayAdapter<ShoppingItem> adapter;
 
@@ -38,6 +46,12 @@ public class MainActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        //Action bar
+        //getActionBar().setHomeButtonEnabled(true); //this means we can click "home"
+
+        coordinatorLayout = (CoordinatorLayout) findViewById(R.id
+                .coordinatorLayout);
+
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
@@ -85,16 +99,46 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
+        switch (item.getItemId()) {
+            case R.id.action_settings:
+                Toast.makeText(this, "Settings icon clicked!",
+                        Toast.LENGTH_SHORT).show();
+                return true;
+            case android.R.id.home:
+                Toast.makeText(this, "Application icon clicked!",
+                        Toast.LENGTH_SHORT).show();
+                return true; //return true, means we have handled the event
+            case R.id.item_about:
+                Toast.makeText(this, "About item clicked!", Toast.LENGTH_SHORT)
+                        .show();
+                return true;
+            case R.id.item_delete:
+                Toast.makeText(this, "Delete item clicked!", Toast.LENGTH_SHORT)
+                        .show();
+                if (Service.getItems().size() > 0) {
+                    new AlertDialog.Builder(this)
+                            .setMessage("Do you really want to delete all items?")
+                            .setIcon(android.R.drawable.ic_dialog_alert)
+                            .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+                                public void onClick(DialogInterface dialog, int whichButton) {
+                                    //Toast.makeText(MainActivity.this, "Yaay", Toast.LENGTH_SHORT).show();
+                                    Snackbar snackbar = Snackbar
+                                            .make(coordinatorLayout, "Welcome to AndroidHive", Snackbar.LENGTH_LONG);
+                                    snackbar.show();
+                                }
+                            })
+                            .setNegativeButton(android.R.string.no, null).show();
+                } else {
+                    //If there are not items to be removed
+                    //Do nothing
+                }
+                return true;
+            case R.id.item_refresh:
+                Toast.makeText(this, "Refresh item clicked!", Toast.LENGTH_SHORT)
+                        .show();
+                return true;
         }
-
         return super.onOptionsItemSelected(item);
     }
 
@@ -141,5 +185,43 @@ public class MainActivity extends AppCompatActivity
         System.out.println("DialogFragment: Negative Click");
     }
 
+    //This will be called when other activities in our application
+    //are finished.
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == 1) //exited our preference screen
+        {
+            Toast toast =
+                    Toast.makeText(getApplicationContext(), "back from preferences", Toast.LENGTH_LONG);
+            toast.setText("back from our preferences");
+            toast.show();
+            //here you could put code to do something.......
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    public void setPreferences(View v) {
+        //Here we create a new activity and we instruct the
+        //Android system to start it
+        Intent intent = new Intent(this, SettingsActivity.class);
+        //startActivity(intent); //this we can use if we DONT CARE ABOUT RESULT
+
+        //we can use this, if we need to know when the user exists our preference screens
+        startActivityForResult(intent, 1);
+    }
+
+    public void getPreferences(View v) {
+
+        //We read the shared preferences from the
+        SharedPreferences prefs = getSharedPreferences("my_prefs", MODE_PRIVATE);
+        String email = prefs.getString("email", "");
+        String gender = prefs.getString("gender", "");
+        boolean soundEnabled = prefs.getBoolean("sound", false);
+
+        Toast.makeText(
+                this,
+                "Email: " + email + "\nGender: " + gender + "\nSound Enabled: "
+                        + soundEnabled, Toast.LENGTH_SHORT).show();
+    }
 
 }
