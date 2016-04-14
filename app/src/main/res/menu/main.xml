@@ -27,5 +27,13 @@
         android:title="About"
         app:showAsAction="never" />
 
+    <item
+        android:id="@+id/item_logout"
+        android:orderInCategory="5"
+        android:title="Logout"
+        app:showAsAction="never"
+        android:visible="false"/>
+
+
 
 </menu>

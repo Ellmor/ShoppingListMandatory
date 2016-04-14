@@ -19,4 +19,5 @@
         <item>Female</item>
     </string-array>
 
+    <string name="firebase_url">https://fiery-torch-2251.firebaseio.com</string>
 </resources>

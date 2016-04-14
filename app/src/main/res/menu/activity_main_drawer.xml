@@ -3,14 +3,23 @@
 
     <item android:title="Account">
         <menu>
-            <item
-                android:id="@+id/nav_login"
-                android:icon="@drawable/ic_menu_login"
-                android:title="Login" />
-            <item
-                android:id="@+id/nav_register"
-                android:icon="@drawable/ic_menu_register"
-                android:title="Register" />
+            <group android:id="@+id/loginGroup">
+                <item
+                    android:id="@+id/nav_login"
+                    android:icon="@drawable/ic_menu_login"
+                    android:title="Login" />
+                <item
+                    android:id="@+id/nav_register"
+                    android:icon="@drawable/ic_menu_register"
+                    android:title="Register" />
+            </group>
+            <group android:id="@+id/logoutGroup">
+                <item
+                    android:id="@+id/nav_logout"
+                    android:icon="@drawable/ic_menu_send"
+                    android:title="Logout"
+                    android:visible="false" />
+            </group>
         </menu>
     </item>
 

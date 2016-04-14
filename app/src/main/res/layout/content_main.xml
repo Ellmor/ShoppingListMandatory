@@ -12,6 +12,14 @@
     tools:context="com.example.nezi2.shoppinglist.MainActivity"
     tools:showIn="@layout/app_bar_main">
 
+
+    <TextView
+        android:id="@+id/login_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:text="Not Logged in" />
+
     <TableRow
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
