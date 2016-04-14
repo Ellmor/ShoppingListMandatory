@@ -13,13 +13,6 @@
                     android:icon="@drawable/ic_menu_register"
                     android:title="Register" />
             </group>
-            <group android:id="@+id/logoutGroup">
-                <item
-                    android:id="@+id/nav_logout"
-                    android:icon="@drawable/ic_menu_send"
-                    android:title="Logout"
-                    android:visible="false" />
-            </group>
         </menu>
     </item>
 

@@ -421,6 +421,8 @@ public class MainActivity extends AppCompatActivity
             //mAnonymousLoginButton.setVisibility(View.GONE);
             //navigationView.getMenu().setGroupVisible(R.id.loginGroup, false);
             //navigationView.getMenu().setGroupVisible(R.id.logoutGroup, true);
+            navigationView.getMenu().clear();
+            navigationView.inflateMenu(R.menu.activity_main_drawer_loggedIn);
 
             /* show a provider specific status text */
             mLoggedInStatusTextView.setVisibility(View.VISIBLE);
@@ -447,8 +449,8 @@ public class MainActivity extends AppCompatActivity
 //            mPasswordLoginButton.setVisibility(View.VISIBLE);
 //            mAnonymousLoginButton.setVisibility(View.VISIBLE);
             mLoggedInStatusTextView.setVisibility(View.GONE);
-            //navigationView.getMenu().setGroupVisible(R.id.loginGroup, true);
-            //navigationView.getMenu().setGroupVisible(R.id.logoutGroup, false);
+            navigationView.getMenu().clear();
+            navigationView.inflateMenu(R.menu.activity_main_drawer_loggedOut);
         }
         this.mAuthData = authData;
         /* invalidate options menu to hide/show the logout button */
