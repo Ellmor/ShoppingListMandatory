@@ -20,4 +20,5 @@
     </string-array>
 
     <string name="firebase_url">https://fiery-torch-2251.firebaseio.com</string>
+    <string name="firebase_lists_url">https://fiery-torch-2251.firebaseio.com/lists</string>
 </resources>

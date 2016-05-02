@@ -1,28 +1,32 @@
 package com.example.nezi2.shoppinglist;
 
 import android.app.AlertDialog;
-import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.NavigationView;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.DialogFragment;
-import android.util.Log;
-import android.view.View;
-import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -32,11 +36,18 @@ import com.firebase.client.DataSnapshot;
 import com.firebase.client.Firebase;
 import com.firebase.client.FirebaseError;
 import com.firebase.client.ValueEventListener;
+import com.firebase.ui.FirebaseListAdapter;
 
+import java.io.InputStream;
+import java.lang.reflect.Array;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 
+import model.ProductType;
 import model.ShoppingItem;
-import service.Service;
+import model.ShoppingList;
 import service.ShoppingListArrayAdapter;
 
 public class MainActivity extends AppCompatActivity
@@ -46,9 +57,15 @@ public class MainActivity extends AppCompatActivity
     //Random
     private CoordinatorLayout coordinatorLayout;
     ListView listView;
-    private ShoppingListArrayAdapter<ShoppingItem> adapter;
 
     //Auth
+
+    //User
+    private TextView userName;
+    private TextView userEmail;
+    private ImageView profilePicture;
+    private ArrayList<ShoppingList> shoppingLists;
+    private ShoppingList selectedShoppingList;
 
     //Nav Login Button
     private View nav_login_btn;
@@ -77,11 +94,16 @@ public class MainActivity extends AppCompatActivity
      *            ANONYMOUSLY              *
      ***************************************/
     private Button mAnonymousLoginButton;
+
     //Service
-    private Service Service = service.Service.getInstance();
+    //private Service Service = service.Service.getInstance();
+
     private Firebase FireBaseRef;
+    private Firebase FireBaseListRef;
+
     private TextView mLoggedInStatusTextView;
     private NavigationView navigationView;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,19 +123,14 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
                 System.out.println("Button Add onClick");
+                //
+                // Show the add item dialog
             }
         });
 
-        /////////
-        // LIST
-        /////////
-
-        listView = (ListView) findViewById(R.id.list);
-        adapter = new ShoppingListArrayAdapter<ShoppingItem>(this,
-                R.layout.listviewitemlayout, Service.getItems());
-        listView.setAdapter(adapter);
-        listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-
+        /////////////
+        // Drawer
+        /////////////
 
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
@@ -124,17 +141,24 @@ public class MainActivity extends AppCompatActivity
         navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
 
-        //Firebase
-        //
-        Firebase.setAndroidContext(this);
+        //User details
+
+        userEmail = (TextView) navigationView.getHeaderView(0).findViewById(R.id.userEmail);
+        userName = (TextView) navigationView.getHeaderView(0).findViewById(R.id.userName);
+        profilePicture = (ImageView) navigationView.getHeaderView(0).findViewById(R.id.profilePicture);
 
         /* *************************************
          *               GENERAL               *
          ***************************************/
         mLoggedInStatusTextView = (TextView) findViewById(R.id.login_status);
 
+        //Init Firebase
+        //Firebase.setAndroidContext(this);
+
         /* Create the Firebase ref that is used for all authentication with Firebase */
         FireBaseRef = new Firebase(getResources().getString(R.string.firebase_url));
+
+        //FireBaseRef.keepSynced(true);
 
         /* Setup the progress dialog that is displayed later when authenticating with Firebase */
         mAuthProgressDialog = new ProgressDialog(this);
@@ -155,6 +179,38 @@ public class MainActivity extends AppCompatActivity
         FireBaseRef.addAuthStateListener(mAuthStateListener);
     }
 
+    /////////
+    // LIST
+    /////////
+
+    private void setShoppingList(Firebase listRef) {
+        listView = (ListView) findViewById(R.id.list);
+        FirebaseListAdapter<ShoppingItem> fireAdapter = new FirebaseListAdapter<ShoppingItem>(this,ShoppingItem.class,R.layout.listviewitemlayout,listRef) {
+
+            @Override
+            protected void populateView(View view, ShoppingItem shoppingItem, int i) {
+                //Product Name line
+                TextView textView = (TextView) view.findViewById(R.id.firstLine);
+                textView.setText(shoppingItem.getName());
+                //Description
+                TextView tvDesc = (TextView) view.findViewById(R.id.secondLine);
+                tvDesc.setText(shoppingItem.getDescription());
+                //Price
+                TextView tvPrice = (TextView) view.findViewById(R.id.price);
+                tvPrice.setText(shoppingItem.getPrice() + " kr");
+                //Product Icon
+                ImageView imageView = (ImageView) view.findViewById(R.id.icon);
+                ProductType s = shoppingItem.getProductType();
+                if (s.equals("Milk")) {
+                    imageView.setImageResource(R.drawable.ic_menu_list);
+                } else if (s.equals("Meet")) {
+                    imageView.setImageResource(R.drawable.ic_menu_login);
+                }
+            }
+        };
+        listView.setAdapter(fireAdapter);
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -165,21 +221,6 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onStart() {
         super.onStart();
-
-        /* Create the Firebase ref that is used for all authentication with Firebase */
-        FireBaseRef = new Firebase(getResources().getString(R.string.firebase_url));
-        FireBaseRef.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                String newCondition = (String) dataSnapshot.getValue();
-
-            }
-
-            @Override
-            public void onCancelled(FirebaseError firebaseError) {
-
-            }
-        });
     }
 
     @Override
@@ -224,7 +265,7 @@ public class MainActivity extends AppCompatActivity
             case R.id.item_delete:
                 Toast.makeText(this, "Delete item clicked!", Toast.LENGTH_SHORT)
                         .show();
-                if (Service.getItems().size() > 0) {
+                if (selectedShoppingList.getShoppingItems().size() > 0) {
                     new AlertDialog.Builder(this)
                             .setMessage("Do you really want to delete all items?")
                             .setIcon(android.R.drawable.ic_dialog_alert)
@@ -263,11 +304,13 @@ public class MainActivity extends AppCompatActivity
         if (id == R.id.nav_login) {
             DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
             drawer.closeDrawer(GravityCompat.START);
-            showDia();
+            showLoginDialog();
             return true;
         } else if (id == R.id.nav_logout) {
             logout();
             return true;
+        } else if (id == R.id.nav_register) {
+            showRegisterDialog();
         } else if (id == R.id.nav_gallery) {
 
         } else if (id == R.id.nav_slideshow) {
@@ -285,9 +328,82 @@ public class MainActivity extends AppCompatActivity
         return true;
     }
 
-    void showDia() {
+    void showLoginDialog() {
         DialogFragment newFragment = LoginDialogFragment.newInstance();
         newFragment.show(getSupportFragmentManager(), "dialog");
+    }
+
+    void showRegisterDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+        builder.setMessage("Enter your email address and password")
+                .setTitle("Sign Up");
+
+        LayoutInflater inflater = this.getLayoutInflater();
+        builder.setView(inflater.inflate(R.layout.dialog_register, null));
+
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                mAuthProgressDialog = new ProgressDialog(MainActivity.this);
+                mAuthProgressDialog.show();
+                AlertDialog dlg = (AlertDialog) dialog;
+                final String email = ((TextView) dlg.findViewById(R.id.regdialog_email)).getText().toString();
+                final String password = ((TextView) dlg.findViewById(R.id.regdialog_password)).getText().toString();
+
+                FireBaseRef.createUser(email, password, new Firebase.ResultHandler() {
+                    @Override
+                    public void onSuccess() {
+                        try {
+                            Thread.sleep(2000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        mAuthProgressDialog.hide();
+                        FireBaseRef.authWithPassword(email, password, new Firebase.AuthResultHandler() {
+                            @Override
+                            public void onAuthenticated(AuthData authData) {
+                                setAuthenticatedUser(authData);
+                                Map<String, String> map = new HashMap<String, String>();
+                                map.put("provider", authData.getProvider());
+                                if (authData.getProviderData().containsKey("displayName")) {
+                                    String name = authData.getProviderData().get("displayName").toString();
+                                    map.put("displayName", name);
+                                }
+                                if (authData.getProviderData().containsKey("email")) {
+                                    String email = authData.getProviderData().get("email").toString();
+                                    map.put("email", email);
+                                }
+                                if (authData.getProviderData().containsKey("profileImageURL")) {
+                                    String profileImageURL = authData.getProviderData().get("profileImageURL").toString();
+                                    map.put("profileImageURL", profileImageURL);
+                                }
+                                FireBaseRef.child("users").child(authData.getUid()).setValue(map);
+                            }
+
+                            @Override
+                            public void onAuthenticationError(FirebaseError firebaseError) {
+                                showErrorDialog(firebaseError.toString());
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(FirebaseError firebaseError) {
+                        mAuthProgressDialog.hide();
+                        // FireBaseRef.authWithPassword(email, password, null);
+                        showErrorDialog(firebaseError.toString());
+                    }
+                });
+
+                mAuthProgressDialog.hide();
+                dlg.dismiss();
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
     }
 
     ////////////////////////////////////////////////////////////////
@@ -298,8 +414,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onDialogPositiveClick(DialogFragment dialog) {
-        //check if password inserted
-        loginWithPassword();
+        //soon to be deleted. reason. no longer necessary
     }
 
     @Override
@@ -311,17 +426,23 @@ public class MainActivity extends AppCompatActivity
     public boolean onIsLoginModelValid(DialogFragment dialog) {
         EditText pass = ((LoginDialogFragment) dialog).getPassView();
         EditText login = ((LoginDialogFragment) dialog).getLoginView();
-        String strPass = pass.toString();
-        String strLogin = login.toString();
-        //login.getText().toString()!="" &&
-        if (strLogin.length() >= 1){
-            if (strPass != null && strPass.length() > 1) {
-                return true;
-            }else{
-                login.setError("Password cannot be empty.");
-            }
-        }else{
+        String strPass = pass.getText().toString();
+        String strLogin = login.getText().toString();
+        boolean loginValid = false;
+        boolean passValid = false;
+        if (strLogin.length() >= 1) {
+            loginValid = true;
+        } else {
             login.setError("Login must be at least 1 character long.");
+        }
+        if (strPass != null && strPass.length() >= 1) {
+            passValid = true;
+        } else {
+            pass.setError("Password cannot be empty.");
+        }
+        if (loginValid && passValid) {
+            loginWithPassword(strLogin, strPass);
+            return true;
         }
         return false;
     }
@@ -422,7 +543,7 @@ public class MainActivity extends AppCompatActivity
             //navigationView.getMenu().setGroupVisible(R.id.loginGroup, false);
             //navigationView.getMenu().setGroupVisible(R.id.logoutGroup, true);
             navigationView.getMenu().clear();
-            navigationView.inflateMenu(R.menu.activity_main_drawer_loggedIn);
+            navigationView.inflateMenu(R.menu.activity_main_drawer_loggedin);
 
             /* show a provider specific status text */
             mLoggedInStatusTextView.setVisibility(View.VISIBLE);
@@ -439,8 +560,43 @@ public class MainActivity extends AppCompatActivity
             }
             if (name != null) {
                 mLoggedInStatusTextView.setText("Logged in as " + name + " (" + authData.getProvider() + ")");
-                Toast.makeText(this, "", Toast.LENGTH_SHORT).show();
+                userName.setText(name);
             }
+            if (authData.getProviderData().containsKey("email")) {
+                String email = authData.getProviderData().get("email").toString();
+                userEmail.setText(email);
+            }
+            if (authData.getProviderData().containsKey("profileImageURL")) {
+                String profileImageURL = authData.getProviderData().get("profileImageURL").toString();
+                new DownloadImageTask(profilePicture).execute(profileImageURL);
+            }
+            // load lists for authenitcated user
+            final Firebase listsRef = new Firebase(getResources().getString(R.string.firebase_lists_url)+"/"+authData.getUid());
+            listsRef.addValueEventListener(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot snapshot) {
+                    Log.e(TAG, "There are " + snapshot.getChildrenCount() + " lists");
+                    if(snapshot.getChildrenCount()==0){
+                        ArrayList<ShoppingItem> si = new ArrayList<ShoppingItem>();
+                        ShoppingList newList = new ShoppingList("Somelist",si);
+                        listsRef.push().setValue(newList);
+                    }
+                    for (DataSnapshot listSnapshot: snapshot.getChildren()) {
+                        ShoppingList list = listSnapshot.getValue(ShoppingList.class);
+                        Log.e(TAG, list.toString());
+                    }
+                    setShoppingList(snapshot.);
+                }
+
+                @Override
+                public void onCancelled(FirebaseError firebaseError) {
+                    Log.e(TAG, "The read failed: " + firebaseError.getMessage());
+                }
+            });
+            // select the first list
+
+            //set listview
+           // setShoppingList(listsRef);
         } else {
             /* No authenticated user show all the login buttons */
 //            mFacebookLoginButton.setVisibility(View.VISIBLE);
@@ -450,7 +606,10 @@ public class MainActivity extends AppCompatActivity
 //            mAnonymousLoginButton.setVisibility(View.VISIBLE);
             mLoggedInStatusTextView.setVisibility(View.GONE);
             navigationView.getMenu().clear();
-            navigationView.inflateMenu(R.menu.activity_main_drawer_loggedOut);
+            navigationView.inflateMenu(R.menu.activity_main_drawer_loggedout);
+            userEmail.setText("");
+            userName.setText("");
+            profilePicture.setImageResource(android.R.drawable.sym_def_app_icon);
         }
         this.mAuthData = authData;
         /* invalidate options menu to hide/show the logout button */
@@ -485,6 +644,8 @@ public class MainActivity extends AppCompatActivity
             mAuthProgressDialog.hide();
             Log.i(TAG, provider + " auth successful");
             setAuthenticatedUser(authData);
+            // Authentication just completed successfully :)
+
         }
 
         @Override
@@ -498,9 +659,50 @@ public class MainActivity extends AppCompatActivity
      *              PASSWORD              *
      **************************************
      */
-    public void loginWithPassword() {
+    public void loginWithPassword(String username, String password) {
         mAuthProgressDialog.show();
-        FireBaseRef.authWithPassword("susu@o2.pl", "nezi12", new AuthResultHandler("password"));
+        //FireBaseRef.authWithPassword("susu@o2.pl", "nezi12", new AuthResultHandler("password"));
+        FireBaseRef.authWithPassword(username, password, new AuthResultHandler("password"));
     }
 
+    /*
+        final AsyncTask<Params, Progress, Result>
+            execute(Params... params)
+                Executes the task with the specified parameters.
+     */
+    private class DownloadImageTask extends AsyncTask<String, Void, Bitmap> {
+        ImageView imageView;
+
+        public DownloadImageTask(ImageView imageView) {
+            this.imageView = imageView;
+        }
+
+        /*
+            doInBackground(Params... params)
+                Override this method to perform a computation on a background thread.
+         */
+        protected Bitmap doInBackground(String... urls) {
+            String urlOfImage = urls[0];
+            Bitmap logo = null;
+            try {
+                InputStream is = new URL(urlOfImage).openStream();
+                /*
+                    decodeStream(InputStream is)
+                        Decode an input stream into a bitmap.
+                 */
+                logo = BitmapFactory.decodeStream(is);
+            } catch (Exception e) { // Catch the download exception
+                e.printStackTrace();
+            }
+            return logo;
+        }
+
+        /*
+            onPostExecute(Result result)
+                Runs on the UI thread after doInBackground(Params...).
+         */
+        protected void onPostExecute(Bitmap result) {
+            imageView.setImageBitmap(result);
+        }
+    }
 }
