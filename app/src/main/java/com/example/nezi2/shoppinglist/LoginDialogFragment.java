@@ -67,7 +67,7 @@ public class LoginDialogFragment extends DialogFragment {
                 .setNegativeButton(R.string.cancel,
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog, int whichButton) {
-                                mListener.onDialogNegativeClick(LoginDialogFragment.this);
+
                             }
                         }
                 );
@@ -87,7 +87,6 @@ public class LoginDialogFragment extends DialogFragment {
                 public void onClick(View v) {
                     //Do stuff, possibly set wantToCloseDialog to true then...
                     if (mListener.onIsLoginModelValid(LoginDialogFragment.this)) {
-                        mListener.onDialogPositiveClick(LoginDialogFragment.this);
                         dismiss();
                     }
                 }
@@ -113,10 +112,6 @@ public class LoginDialogFragment extends DialogFragment {
     }
 
     public interface OnLoginDialogListener {
-        public void onDialogPositiveClick(DialogFragment dialog);
-
-        public void onDialogNegativeClick(DialogFragment dialog);
-
         public boolean onIsLoginModelValid(DialogFragment dialog);
     }
 }

@@ -16,15 +16,16 @@
 
     <TextView
         android:id="@+id/secondLine"
-        android:layout_width="fill_parent"
+        android:layout_width="wrap_content"
         android:layout_height="26dip"
         android:layout_alignParentBottom="true"
-        android:layout_alignParentRight="true"
+        android:layout_alignParentRight="false"
         android:layout_toRightOf="@id/icon"
         android:ellipsize="marquee"
-        android:singleLine="true"
+        android:singleLine="false"
         android:text="Description"
-        android:textSize="12sp" />
+        android:textSize="12sp"
+        android:layout_toLeftOf="@+id/price" />
 
     <TextView
         android:id="@+id/firstLine"
@@ -34,18 +35,41 @@
         android:layout_alignLeft="@+id/secondLine"
         android:layout_alignParentTop="true"
         android:layout_alignWithParentIfMissing="true"
-        android:layout_toLeftOf="@+id/price"
         android:gravity="center_vertical"
         android:text="Example application"
-        android:textSize="16sp" />
+        android:textSize="16sp"
+        android:layout_toLeftOf="@+id/price"
+        android:layout_toStartOf="@+id/price" />
 
     <TextView
         android:id="@+id/price"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentTop="true"
         android:text="20kr"
-        android:textSize="16sp" />
+        android:textSize="16sp"
+        android:layout_alignTop="@+id/firstLine"
+        android:layout_toLeftOf="@+id/checkBox"
+        android:layout_toStartOf="@+id/checkBox" />
+
+    <CheckBox
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/checkBox"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="false"
+        android:layout_alignParentTop="true"
+        android:checked="false" />
+
+    <ImageButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/imageButton"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="false"
+        android:src="@android:drawable/ic_delete"
+        android:layout_below="@+id/checkBox"
+        android:layout_alignLeft="@+id/checkBox"
+        android:layout_alignStart="@+id/checkBox"
+        android:background="@null" />
 
 </RelativeLayout>

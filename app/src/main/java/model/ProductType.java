@@ -9,16 +9,18 @@ public class ProductType {
     private int id;
     private String name;
 
-    public ProductType(String json){
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            ProductType pt = mapper.readValue(json, ProductType.class);
-            this.id = pt.getID();
-            this.name = pt.getName();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+    public ProductType(){}
+
+//    public ProductType(String json){
+//        ObjectMapper mapper = new ObjectMapper();
+//        try {
+//            ProductType pt = mapper.readValue(json, ProductType.class);
+//            this.id = pt.getID();
+//            this.name = pt.getName();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
 
     public ProductType(int id, String name) {
         this.id = id;
@@ -41,14 +43,14 @@ public class ProductType {
         this.name = name;
     }
 
-    @Override
-    public String toString() {
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            return mapper.writeValueAsString(this);
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-            return "PARSING ERROR";
-        }
-    }
+//    @Override
+//    public String toString() {
+//        ObjectMapper mapper = new ObjectMapper();
+//        try {
+//            return mapper.writeValueAsString(this);
+//        } catch (JsonProcessingException e) {
+//            e.printStackTrace();
+//            return "PARSING ERROR";
+//        }
+//    }
 }

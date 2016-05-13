@@ -32,6 +32,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.firebase.client.AuthData;
+import com.firebase.client.ChildEventListener;
 import com.firebase.client.DataSnapshot;
 import com.firebase.client.Firebase;
 import com.firebase.client.FirebaseError;
@@ -39,16 +40,15 @@ import com.firebase.client.ValueEventListener;
 import com.firebase.ui.FirebaseListAdapter;
 
 import java.io.InputStream;
-import java.lang.reflect.Array;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import model.ProductType;
 import model.ShoppingItem;
 import model.ShoppingList;
-import service.ShoppingListArrayAdapter;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, LoginDialogFragment.OnLoginDialogListener {
@@ -100,6 +100,7 @@ public class MainActivity extends AppCompatActivity
 
     private Firebase FireBaseRef;
     private Firebase FireBaseListRef;
+    private Firebase selectedShoppingListItemsRef;
 
     private TextView mLoggedInStatusTextView;
     private NavigationView navigationView;
@@ -122,9 +123,38 @@ public class MainActivity extends AppCompatActivity
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                System.out.println("Button Add onClick");
-                //
-                // Show the add item dialog
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+
+                builder.setTitle("Add new item");
+
+                LayoutInflater inflater = MainActivity.this.getLayoutInflater();
+                builder.setView(inflater.inflate(R.layout.dialog_newitem, null));
+
+                builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        //check if there is a refrence it items in current list
+                        if (selectedShoppingListItemsRef != null) {
+                            final ShoppingItem newItem = new ShoppingItem("Test", "Description", 0.0F, new ProductType(0, "ETC"));
+                            selectedShoppingListItemsRef.getParent().addListenerForSingleValueEvent(new ValueEventListener() {
+                                @Override
+                                public void onDataChange(DataSnapshot snapshot) {
+                                    ArrayList<ShoppingItem> items = (ArrayList<ShoppingItem>) snapshot.getValue(List.class);
+                                    items.add(newItem);
+                                    selectedShoppingListItemsRef.setValue(items);
+                                }
+                                @Override
+                                public void onCancelled(FirebaseError firebaseError) {
+                                }
+                            });
+                        } else {
+                            //ERROR You cannot add to an empty list
+                        }
+                    }
+                });
+                builder.setNegativeButton("Cancel", null);
+
+                AlertDialog dialog = builder.create();
+                dialog.show();
             }
         });
 
@@ -151,6 +181,10 @@ public class MainActivity extends AppCompatActivity
          *               GENERAL               *
          ***************************************/
         mLoggedInStatusTextView = (TextView) findViewById(R.id.login_status);
+
+        listView = (ListView) findViewById(R.id.list);
+        listView.setEmptyView(findViewById(R.id.emptyList));
+        //listView.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
 
         //Init Firebase
         //Firebase.setAndroidContext(this);
@@ -184,8 +218,8 @@ public class MainActivity extends AppCompatActivity
     /////////
 
     private void setShoppingList(Firebase listRef) {
-        listView = (ListView) findViewById(R.id.list);
-        FirebaseListAdapter<ShoppingItem> fireAdapter = new FirebaseListAdapter<ShoppingItem>(this,ShoppingItem.class,R.layout.listviewitemlayout,listRef) {
+
+        FirebaseListAdapter<ShoppingItem> fireAdapter = new FirebaseListAdapter<ShoppingItem>(this, ShoppingItem.class, R.layout.listviewitemlayout, listRef) {
 
             @Override
             protected void populateView(View view, ShoppingItem shoppingItem, int i) {
@@ -209,6 +243,11 @@ public class MainActivity extends AppCompatActivity
             }
         };
         listView.setAdapter(fireAdapter);
+    }
+
+
+    public void emptyShoppingList() {
+
     }
 
     @Override
@@ -328,10 +367,11 @@ public class MainActivity extends AppCompatActivity
         return true;
     }
 
-    void showLoginDialog() {
-        DialogFragment newFragment = LoginDialogFragment.newInstance();
-        newFragment.show(getSupportFragmentManager(), "dialog");
-    }
+    ////////////////////////////////////////////////////////////////
+    //
+    //                      REGISTER DIALOG
+    //
+    ////////////////////////////////////////////////////////////////
 
     void showRegisterDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -412,14 +452,9 @@ public class MainActivity extends AppCompatActivity
     //
     ////////////////////////////////////////////////////////////////
 
-    @Override
-    public void onDialogPositiveClick(DialogFragment dialog) {
-        //soon to be deleted. reason. no longer necessary
-    }
-
-    @Override
-    public void onDialogNegativeClick(DialogFragment dialog) {
-        System.out.println("DialogFragment: Negative Click");
+    void showLoginDialog() {
+        DialogFragment newFragment = LoginDialogFragment.newInstance();
+        newFragment.show(getSupportFragmentManager(), "dialog");
     }
 
     @Override
@@ -571,21 +606,26 @@ public class MainActivity extends AppCompatActivity
                 new DownloadImageTask(profilePicture).execute(profileImageURL);
             }
             // load lists for authenitcated user
-            final Firebase listsRef = new Firebase(getResources().getString(R.string.firebase_lists_url)+"/"+authData.getUid());
+            final Firebase listsRef = new Firebase(getResources().getString(R.string.firebase_lists_url) + "/" + authData.getUid());
             listsRef.addValueEventListener(new ValueEventListener() {
                 @Override
                 public void onDataChange(DataSnapshot snapshot) {
                     Log.e(TAG, "There are " + snapshot.getChildrenCount() + " lists");
-                    if(snapshot.getChildrenCount()==0){
+                    //if there are no lists add the default list
+                    //maybe should be changed to a way of handling zero lists
+                    if (snapshot.getChildrenCount() == 0) {
                         ArrayList<ShoppingItem> si = new ArrayList<ShoppingItem>();
-                        ShoppingList newList = new ShoppingList("Somelist",si);
+                        si.add(new ShoppingItem("Test", "Description", 0.0F, new ProductType(0, "ETC")));
+                        ShoppingList newList = new ShoppingList("Somelist", si);
                         listsRef.push().setValue(newList);
+                    } else { //if there are lists
+                        for (DataSnapshot listSnapshot : snapshot.getChildren()) {
+                            ShoppingList list = listSnapshot.getValue(ShoppingList.class);
+                            selectedShoppingListItemsRef = listSnapshot.getRef().child("shoppingItems");
+                            setShoppingList(selectedShoppingListItemsRef.getRef());
+                            Log.e(TAG, list.toString());
+                        }
                     }
-                    for (DataSnapshot listSnapshot: snapshot.getChildren()) {
-                        ShoppingList list = listSnapshot.getValue(ShoppingList.class);
-                        Log.e(TAG, list.toString());
-                    }
-                    setShoppingList(snapshot.);
                 }
 
                 @Override
@@ -596,7 +636,7 @@ public class MainActivity extends AppCompatActivity
             // select the first list
 
             //set listview
-           // setShoppingList(listsRef);
+            // setShoppingList(listsRef);
         } else {
             /* No authenticated user show all the login buttons */
 //            mFacebookLoginButton.setVisibility(View.VISIBLE);
@@ -610,6 +650,7 @@ public class MainActivity extends AppCompatActivity
             userEmail.setText("");
             userName.setText("");
             profilePicture.setImageResource(android.R.drawable.sym_def_app_icon);
+            emptyShoppingList();
         }
         this.mAuthData = authData;
         /* invalidate options menu to hide/show the logout button */

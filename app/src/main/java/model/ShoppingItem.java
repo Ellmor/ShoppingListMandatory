@@ -13,18 +13,20 @@ public class ShoppingItem implements Serializable {
     private String _description;
     private ProductType _productType;
 
-    public ShoppingItem(String json){
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            ShoppingItem si = mapper.readValue(json, ShoppingItem.class);
-            this._description = si.getDescription();
-            this._name = si.getName();
-            this._price = si.getPrice();
-            this._productType = si.getProductType();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+    public ShoppingItem(){}
+
+//    public ShoppingItem(String json){
+//        ObjectMapper mapper = new ObjectMapper();
+//        try {
+//            ShoppingItem si = mapper.readValue(json, ShoppingItem.class);
+//            this._description = si.getDescription();
+//            this._name = si.getName();
+//            this._price = si.getPrice();
+//            this._productType = si.getProductType();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
 
     public ShoppingItem(String name, String description, double price, ProductType type) {
         this._price = price;
@@ -64,15 +66,15 @@ public class ShoppingItem implements Serializable {
     public void setProductType(ProductType productType) {
         this._productType = productType;
     }
-
-    @Override
-    public String toString() {
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            return mapper.writeValueAsString(this);
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-            return "PARSING ERROR";
-        }
-    }
+//
+//    @Override
+//    public String toString() {
+//        ObjectMapper mapper = new ObjectMapper();
+//        try {
+//            return mapper.writeValueAsString(this);
+//        } catch (JsonProcessingException e) {
+//            e.printStackTrace();
+//            return "PARSING ERROR";
+//        }
+//    }
 }
