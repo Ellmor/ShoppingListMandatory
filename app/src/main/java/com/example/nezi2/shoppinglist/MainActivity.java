@@ -1,19 +1,20 @@
 package com.example.nezi2.shoppinglist;
 
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.NavigationView;
 import android.support.design.widget.Snackbar;
-import android.support.v4.app.DialogFragment;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
@@ -26,13 +27,14 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.nezi2.shoppinglist.model.ShoppingItem;
 import com.firebase.client.AuthData;
-import com.firebase.client.ChildEventListener;
 import com.firebase.client.DataSnapshot;
 import com.firebase.client.Firebase;
 import com.firebase.client.FirebaseError;
@@ -41,31 +43,22 @@ import com.firebase.ui.FirebaseListAdapter;
 
 import java.io.InputStream;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import model.ProductType;
-import model.ShoppingItem;
-import model.ShoppingList;
-
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener, LoginDialogFragment.OnLoginDialogListener {
+        implements NavigationView.OnNavigationItemSelectedListener {
 
     private static final String TAG = "ShoppingList";
+    ListView listView;
     //Random
     private CoordinatorLayout coordinatorLayout;
-    ListView listView;
 
     //Auth
-
     //User
     private TextView userName;
     private TextView userEmail;
     private ImageView profilePicture;
-    private ArrayList<ShoppingList> shoppingLists;
-    private ShoppingList selectedShoppingList;
 
     //Nav Login Button
     private View nav_login_btn;
@@ -98,9 +91,8 @@ public class MainActivity extends AppCompatActivity
     //Service
     //private Service Service = service.Service.getInstance();
 
-    private Firebase FireBaseRef;
-    private Firebase FireBaseListRef;
-    private Firebase selectedShoppingListItemsRef;
+    private Firebase sRef;
+    private Firebase listsRef;
 
     private TextView mLoggedInStatusTextView;
     private NavigationView navigationView;
@@ -123,6 +115,21 @@ public class MainActivity extends AppCompatActivity
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                //if not logged it
+                if (mAuthData == null) {
+                    Snackbar
+                            .make(coordinatorLayout, "You need to be registered to add items.", Snackbar.LENGTH_LONG)
+                            .setAction("Register", new View.OnClickListener() {
+                                @Override
+                                public void onClick(View v) {
+                                    showRegisterDialog();
+                                }
+                            })
+                            .setActionTextColor(Color.BLUE)
+                            .show();
+
+                    return;
+                }
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
 
                 builder.setTitle("Add new item");
@@ -130,30 +137,32 @@ public class MainActivity extends AppCompatActivity
                 LayoutInflater inflater = MainActivity.this.getLayoutInflater();
                 builder.setView(inflater.inflate(R.layout.dialog_newitem, null));
 
-                builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                        //check if there is a refrence it items in current list
-                        if (selectedShoppingListItemsRef != null) {
-                            final ShoppingItem newItem = new ShoppingItem("Test", "Description", 0.0F, new ProductType(0, "ETC"));
-                            selectedShoppingListItemsRef.getParent().addListenerForSingleValueEvent(new ValueEventListener() {
-                                @Override
-                                public void onDataChange(DataSnapshot snapshot) {
-                                    ArrayList<ShoppingItem> items = (ArrayList<ShoppingItem>) snapshot.getValue(List.class);
-                                    items.add(newItem);
-                                    selectedShoppingListItemsRef.setValue(items);
-                                }
-                                @Override
-                                public void onCancelled(FirebaseError firebaseError) {
-                                }
-                            });
-                        } else {
-                            //ERROR You cannot add to an empty list
-                        }
-                    }
-                });
+                builder.setPositiveButton("OK", null);
                 builder.setNegativeButton("Cancel", null);
 
-                AlertDialog dialog = builder.create();
+                final AlertDialog dialog = builder.create();
+                dialog.setOnShowListener(new DialogInterface.OnShowListener() {
+                    @Override
+                    public void onShow(final DialogInterface d) {
+                        Button btnOK = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                        btnOK.setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                AlertDialog dlg = (AlertDialog) dialog;
+                                String name = ((TextView) dlg.findViewById(R.id.newitem_name)).getText() + "";
+                                Double quantity = -1.0;
+                                try {
+                                    quantity = Double.valueOf(((TextView) dlg.findViewById(R.id.newitem_quantity)).getText() + "");
+                                } catch (Exception e) {
+                                    quantity = 0.0;
+                                }
+                                final ShoppingItem newItem = new ShoppingItem(name, quantity);
+                                listsRef.push().setValue(newItem);
+                                dialog.dismiss();
+                            }
+                        });
+                    }
+                });
                 dialog.show();
             }
         });
@@ -184,15 +193,9 @@ public class MainActivity extends AppCompatActivity
 
         listView = (ListView) findViewById(R.id.list);
         listView.setEmptyView(findViewById(R.id.emptyList));
-        //listView.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
-
-        //Init Firebase
-        //Firebase.setAndroidContext(this);
 
         /* Create the Firebase ref that is used for all authentication with Firebase */
-        FireBaseRef = new Firebase(getResources().getString(R.string.firebase_url));
-
-        //FireBaseRef.keepSynced(true);
+        sRef = new Firebase(getResources().getString(R.string.firebase_url));
 
         /* Setup the progress dialog that is displayed later when authenticating with Firebase */
         mAuthProgressDialog = new ProgressDialog(this);
@@ -210,51 +213,54 @@ public class MainActivity extends AppCompatActivity
         };
         /* Check if the user is authenticated with Firebase already. If this is the case we can set the authenticated
          * user and hide hide any login buttons */
-        FireBaseRef.addAuthStateListener(mAuthStateListener);
+        sRef.addAuthStateListener(mAuthStateListener);
     }
 
     /////////
     // LIST
     /////////
 
-    private void setShoppingList(Firebase listRef) {
-
-        FirebaseListAdapter<ShoppingItem> fireAdapter = new FirebaseListAdapter<ShoppingItem>(this, ShoppingItem.class, R.layout.listviewitemlayout, listRef) {
+    private void setShoppingList() {
+        final FirebaseListAdapter<ShoppingItem> fireAdapter = new FirebaseListAdapter<ShoppingItem>(this, ShoppingItem.class, R.layout.listviewitemlayout, listsRef) {
 
             @Override
             protected void populateView(View view, ShoppingItem shoppingItem, int i) {
                 //Product Name line
-                TextView textView = (TextView) view.findViewById(R.id.firstLine);
-                textView.setText(shoppingItem.getName());
+                TextView tvName = (TextView) view.findViewById(R.id.itemName);
+                tvName.setText(shoppingItem.getName());
                 //Description
-                TextView tvDesc = (TextView) view.findViewById(R.id.secondLine);
-                tvDesc.setText(shoppingItem.getDescription());
-                //Price
-                TextView tvPrice = (TextView) view.findViewById(R.id.price);
-                tvPrice.setText(shoppingItem.getPrice() + " kr");
+                TextView tvQuantity = (TextView) view.findViewById(R.id.itemQuantity);
+                tvQuantity.setText(shoppingItem.getQuantity() + "");
+
+                final int position = i;
+                //Button delete + delete controller
+                ImageButton btnDelete = (ImageButton) view.findViewById(R.id.itemDelete);
+                btnDelete.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        getRef(position).removeValue();
+                    }
+                });
+
                 //Product Icon
-                ImageView imageView = (ImageView) view.findViewById(R.id.icon);
-                ProductType s = shoppingItem.getProductType();
-                if (s.equals("Milk")) {
-                    imageView.setImageResource(R.drawable.ic_menu_list);
-                } else if (s.equals("Meet")) {
-                    imageView.setImageResource(R.drawable.ic_menu_login);
-                }
+//                ImageView imageView = (ImageView) view.findViewById(R.id.icon);
+//                ProductType s = shoppingItem.getProductType();
+//                if (s.equals("Milk")) {
+//                    imageView.setImageResource(R.drawable.ic_menu_list);
+//                } else if (s.equals("Meet")) {
+//                    imageView.setImageResource(R.drawable.ic_menu_login);
+//                }
             }
         };
         listView.setAdapter(fireAdapter);
     }
 
 
-    public void emptyShoppingList() {
-
-    }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
         // if changing configurations, stop tracking firebase session.
-        FireBaseRef.removeAuthStateListener(mAuthStateListener);
+        sRef.removeAuthStateListener(mAuthStateListener);
     }
 
     @Override
@@ -301,27 +307,22 @@ public class MainActivity extends AppCompatActivity
                 Toast.makeText(this, "About item clicked!", Toast.LENGTH_SHORT)
                         .show();
                 return true;
-            case R.id.item_delete:
+            case R.id.item_delete_all:
                 Toast.makeText(this, "Delete item clicked!", Toast.LENGTH_SHORT)
                         .show();
-                if (selectedShoppingList.getShoppingItems().size() > 0) {
-                    new AlertDialog.Builder(this)
-                            .setMessage("Do you really want to delete all items?")
-                            .setIcon(android.R.drawable.ic_dialog_alert)
-                            .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                new AlertDialog.Builder(this)
+                        .setMessage("Do you really want to delete all items?")
+                        .setIcon(android.R.drawable.ic_dialog_alert)
+                        .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
 
-                                public void onClick(DialogInterface dialog, int whichButton) {
-                                    //Toast.makeText(MainActivity.this, "Yaay", Toast.LENGTH_SHORT).show();
-                                    Snackbar snackbar = Snackbar
-                                            .make(coordinatorLayout, "Welcome to AndroidHive", Snackbar.LENGTH_LONG);
-                                    snackbar.show();
-                                }
-                            })
-                            .setNegativeButton(android.R.string.no, null).show();
-                } else {
-                    //If there are not items to be removed
-                    //Do nothing
-                }
+                            public void onClick(DialogInterface dialog, int whichButton) {
+                                //Toast.makeText(MainActivity.this, "Yaay", Toast.LENGTH_SHORT).show();
+                                Snackbar snackbar = Snackbar
+                                        .make(coordinatorLayout, "Welcome to AndroidHive", Snackbar.LENGTH_LONG);
+                                snackbar.show();
+                            }
+                        })
+                        .setNegativeButton(android.R.string.no, null).show();
                 return true;
             case R.id.item_refresh:
                 Toast.makeText(this, "Refresh item clicked!", Toast.LENGTH_SHORT)
@@ -390,7 +391,7 @@ public class MainActivity extends AppCompatActivity
                 final String email = ((TextView) dlg.findViewById(R.id.regdialog_email)).getText().toString();
                 final String password = ((TextView) dlg.findViewById(R.id.regdialog_password)).getText().toString();
 
-                FireBaseRef.createUser(email, password, new Firebase.ResultHandler() {
+                sRef.createUser(email, password, new Firebase.ResultHandler() {
                     @Override
                     public void onSuccess() {
                         try {
@@ -399,7 +400,7 @@ public class MainActivity extends AppCompatActivity
                             e.printStackTrace();
                         }
                         mAuthProgressDialog.hide();
-                        FireBaseRef.authWithPassword(email, password, new Firebase.AuthResultHandler() {
+                        sRef.authWithPassword(email, password, new Firebase.AuthResultHandler() {
                             @Override
                             public void onAuthenticated(AuthData authData) {
                                 setAuthenticatedUser(authData);
@@ -417,7 +418,7 @@ public class MainActivity extends AppCompatActivity
                                     String profileImageURL = authData.getProviderData().get("profileImageURL").toString();
                                     map.put("profileImageURL", profileImageURL);
                                 }
-                                FireBaseRef.child("users").child(authData.getUid()).setValue(map);
+                                sRef.child("users").child(authData.getUid()).setValue(map);
                             }
 
                             @Override
@@ -430,7 +431,7 @@ public class MainActivity extends AppCompatActivity
                     @Override
                     public void onError(FirebaseError firebaseError) {
                         mAuthProgressDialog.hide();
-                        // FireBaseRef.authWithPassword(email, password, null);
+                        // sRef.authWithPassword(email, password, null);
                         showErrorDialog(firebaseError.toString());
                     }
                 });
@@ -453,33 +454,55 @@ public class MainActivity extends AppCompatActivity
     ////////////////////////////////////////////////////////////////
 
     void showLoginDialog() {
-        DialogFragment newFragment = LoginDialogFragment.newInstance();
-        newFragment.show(getSupportFragmentManager(), "dialog");
-    }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        // Get the layout inflater
+        LayoutInflater inflater = this.getLayoutInflater();
 
-    @Override
-    public boolean onIsLoginModelValid(DialogFragment dialog) {
-        EditText pass = ((LoginDialogFragment) dialog).getPassView();
-        EditText login = ((LoginDialogFragment) dialog).getLoginView();
-        String strPass = pass.getText().toString();
-        String strLogin = login.getText().toString();
-        boolean loginValid = false;
-        boolean passValid = false;
-        if (strLogin.length() >= 1) {
-            loginValid = true;
-        } else {
-            login.setError("Login must be at least 1 character long.");
-        }
-        if (strPass != null && strPass.length() >= 1) {
-            passValid = true;
-        } else {
-            pass.setError("Password cannot be empty.");
-        }
-        if (loginValid && passValid) {
-            loginWithPassword(strLogin, strPass);
-            return true;
-        }
-        return false;
+        final View view = inflater.inflate(R.layout.dialog_signin, null);
+        builder.setView(view)
+                .setIcon(R.drawable.ic_menu_gallery)
+                .setTitle("Login")
+                .setPositiveButton(R.string.signin, null)
+                .setNegativeButton(R.string.cancel, null);
+
+
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override
+            public void onShow(final DialogInterface dialog) {
+                final AlertDialog d = (AlertDialog) dialog;
+                if (d != null) {
+                    Button positiveButton = (Button) d.getButton(Dialog.BUTTON_POSITIVE);
+                    positiveButton.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            EditText loginView = (EditText) d.findViewById(R.id.logindialog_username);
+                            EditText passView = (EditText) d.findViewById(R.id.logindialog_password);
+                            String loginText = "";
+                            String passTest = "";
+                            if (loginView.getText() != null) {
+                                loginText = loginView.getText().toString();
+                                if (loginText.length() < 1) {
+                                    loginView.setError("Enter login");
+                                    return;
+                                }
+                            }
+                            if (passView.getText() != null) {
+                                passTest = passView.getText().toString();
+                                if (passTest.length() < 1) {
+                                    passView.setError("Enter password");
+                                    return;
+                                }
+                            }
+                            //login
+                            loginWithPassword(loginText, passTest);
+                            dialog.dismiss();
+                        }
+                    });
+                }
+            }
+        });
+        dialog.show();
     }
 
     //This will be called when other activities in our application
@@ -527,40 +550,9 @@ public class MainActivity extends AppCompatActivity
     private void logout() {
         if (this.mAuthData != null) {
             /* logout of Firebase */
-            FireBaseRef.unauth();
-            /* Logout of any of the Frameworks. This step is optional, but ensures the user is not logged into
-             * Facebook/Google+ after logging out of Firebase. */
-//            if (this.mAuthData.getProvider().equals("facebook")) {
-//                /* Logout from Facebook */
-//                LoginManager.getInstance().logOut();
-//            } else if (this.mAuthData.getProvider().equals("google")) {
-//                /* Logout from Google+ */
-//                if (mGoogleApiClient.isConnected()) {
-//                    Plus.AccountApi.clearDefaultAccount(mGoogleApiClient);
-//                    mGoogleApiClient.disconnect();
-//                }
-//            }
+            sRef.unauth();
             /* Update authenticated user and show login buttons */
             setAuthenticatedUser(null);
-        }
-    }
-
-    /**
-     * This method will attempt to authenticate a user to firebase given an oauth_token (and other
-     * necessary parameters depending on the provider)
-     */
-    private void authWithFirebase(final String provider, Map<String, String> options) {
-        if (options.containsKey("error")) {
-            showErrorDialog(options.get("error"));
-        } else {
-            mAuthProgressDialog.show();
-            if (provider.equals("twitter")) {
-                // if the provider is twitter, we pust pass in additional options, so use the options endpoint
-                FireBaseRef.authWithOAuthToken(provider, options, new AuthResultHandler(provider));
-            } else {
-                // if the provider is not twitter, we just need to pass in the oauth_token
-                FireBaseRef.authWithOAuthToken(provider, options.get("oauth_token"), new AuthResultHandler(provider));
-            }
         }
     }
 
@@ -569,30 +561,14 @@ public class MainActivity extends AppCompatActivity
      */
     private void setAuthenticatedUser(AuthData authData) {
         if (authData != null) {
-            /* Hide all the login buttons */
-            //mFacebookLoginButton.setVisibility(View.GONE);
-            //mGoogleLoginButton.setVisibility(View.GONE);
-            //mTwitterLoginButton.setVisibility(View.GONE);
-            //mPasswordLoginButton.setVisibility(View.GONE);
-            //mAnonymousLoginButton.setVisibility(View.GONE);
-            //navigationView.getMenu().setGroupVisible(R.id.loginGroup, false);
-            //navigationView.getMenu().setGroupVisible(R.id.logoutGroup, true);
+
             navigationView.getMenu().clear();
             navigationView.inflateMenu(R.menu.activity_main_drawer_loggedin);
 
             /* show a provider specific status text */
             mLoggedInStatusTextView.setVisibility(View.VISIBLE);
-            String name = null;
-            if (authData.getProvider().equals("facebook")
-                    || authData.getProvider().equals("google")
-                    || authData.getProvider().equals("twitter")) {
-                name = (String) authData.getProviderData().get("displayName");
-            } else if (authData.getProvider().equals("anonymous")
-                    || authData.getProvider().equals("password")) {
-                name = authData.getUid();
-            } else {
-                Log.e(TAG, "Invalid provider: " + authData.getProvider());
-            }
+            String name = authData.getUid();
+
             if (name != null) {
                 mLoggedInStatusTextView.setText("Logged in as " + name + " (" + authData.getProvider() + ")");
                 userName.setText(name);
@@ -606,26 +582,12 @@ public class MainActivity extends AppCompatActivity
                 new DownloadImageTask(profilePicture).execute(profileImageURL);
             }
             // load lists for authenitcated user
-            final Firebase listsRef = new Firebase(getResources().getString(R.string.firebase_lists_url) + "/" + authData.getUid());
+            listsRef = new Firebase(getResources().getString(R.string.firebase_lists_url) + "/" + authData.getUid());
             listsRef.addValueEventListener(new ValueEventListener() {
                 @Override
                 public void onDataChange(DataSnapshot snapshot) {
-                    Log.e(TAG, "There are " + snapshot.getChildrenCount() + " lists");
-                    //if there are no lists add the default list
-                    //maybe should be changed to a way of handling zero lists
-                    if (snapshot.getChildrenCount() == 0) {
-                        ArrayList<ShoppingItem> si = new ArrayList<ShoppingItem>();
-                        si.add(new ShoppingItem("Test", "Description", 0.0F, new ProductType(0, "ETC")));
-                        ShoppingList newList = new ShoppingList("Somelist", si);
-                        listsRef.push().setValue(newList);
-                    } else { //if there are lists
-                        for (DataSnapshot listSnapshot : snapshot.getChildren()) {
-                            ShoppingList list = listSnapshot.getValue(ShoppingList.class);
-                            selectedShoppingListItemsRef = listSnapshot.getRef().child("shoppingItems");
-                            setShoppingList(selectedShoppingListItemsRef.getRef());
-                            Log.e(TAG, list.toString());
-                        }
-                    }
+                    Log.e(TAG, "There are " + snapshot.getChildrenCount() + " items");
+                    setShoppingList();
                 }
 
                 @Override
@@ -638,19 +600,14 @@ public class MainActivity extends AppCompatActivity
             //set listview
             // setShoppingList(listsRef);
         } else {
-            /* No authenticated user show all the login buttons */
-//            mFacebookLoginButton.setVisibility(View.VISIBLE);
-//            mGoogleLoginButton.setVisibility(View.VISIBLE);
-//            mTwitterLoginButton.setVisibility(View.VISIBLE);
-//            mPasswordLoginButton.setVisibility(View.VISIBLE);
-//            mAnonymousLoginButton.setVisibility(View.VISIBLE);
             mLoggedInStatusTextView.setVisibility(View.GONE);
             navigationView.getMenu().clear();
             navigationView.inflateMenu(R.menu.activity_main_drawer_loggedout);
             userEmail.setText("");
             userName.setText("");
             profilePicture.setImageResource(android.R.drawable.sym_def_app_icon);
-            emptyShoppingList();
+            //clear list
+            listView.setAdapter(null);
         }
         this.mAuthData = authData;
         /* invalidate options menu to hide/show the logout button */
@@ -669,48 +626,33 @@ public class MainActivity extends AppCompatActivity
                 .show();
     }
 
-    /**
-     * Utility class for authentication results
-     */
-    private class AuthResultHandler implements Firebase.AuthResultHandler {
-
-        private final String provider;
-
-        public AuthResultHandler(String provider) {
-            this.provider = provider;
-        }
-
-        @Override
-        public void onAuthenticated(AuthData authData) {
-            mAuthProgressDialog.hide();
-            Log.i(TAG, provider + " auth successful");
-            setAuthenticatedUser(authData);
-            // Authentication just completed successfully :)
-
-        }
-
-        @Override
-        public void onAuthenticationError(FirebaseError firebaseError) {
-            mAuthProgressDialog.hide();
-            showErrorDialog(firebaseError.toString());
-        }
-    }
-
     /* ************************************
      *              PASSWORD              *
      **************************************
      */
     public void loginWithPassword(String username, String password) {
         mAuthProgressDialog.show();
-        //FireBaseRef.authWithPassword("susu@o2.pl", "nezi12", new AuthResultHandler("password"));
-        FireBaseRef.authWithPassword(username, password, new AuthResultHandler("password"));
+        sRef.authWithPassword(username, password, new Firebase.AuthResultHandler() {
+            @Override
+            public void onAuthenticated(AuthData authData) {
+                mAuthProgressDialog.hide();
+                Log.i(TAG, "auth successful");
+                setAuthenticatedUser(authData);
+            }
+
+            @Override
+            public void onAuthenticationError(FirebaseError firebaseError) {
+                mAuthProgressDialog.hide();
+                showErrorDialog(firebaseError.toString());
+            }
+        });
     }
 
     /*
-        final AsyncTask<Params, Progress, Result>
-            execute(Params... params)
-                Executes the task with the specified parameters.
-     */
+       final AsyncTask<Params, Progress, Result>
+           execute(Params... params)
+               Executes the task with the specified parameters.
+    */
     private class DownloadImageTask extends AsyncTask<String, Void, Bitmap> {
         ImageView imageView;
 
