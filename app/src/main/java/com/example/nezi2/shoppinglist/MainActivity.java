@@ -11,6 +11,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.NavigationView;
@@ -43,6 +44,7 @@ import com.firebase.ui.FirebaseListAdapter;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,6 +52,7 @@ public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
 
     private static final String TAG = "ShoppingList";
+    private static final int PREFERENCES_CODE = 299;
     ListView listView;
     //Random
     private CoordinatorLayout coordinatorLayout;
@@ -94,7 +97,6 @@ public class MainActivity extends AppCompatActivity
     private Firebase sRef;
     private Firebase listsRef;
 
-    private TextView mLoggedInStatusTextView;
     private NavigationView navigationView;
 
 
@@ -125,9 +127,8 @@ public class MainActivity extends AppCompatActivity
                                     showRegisterDialog();
                                 }
                             })
-                            .setActionTextColor(Color.BLUE)
+                            .setActionTextColor(Color.GREEN)
                             .show();
-
                     return;
                 }
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
@@ -186,11 +187,6 @@ public class MainActivity extends AppCompatActivity
         userName = (TextView) navigationView.getHeaderView(0).findViewById(R.id.userName);
         profilePicture = (ImageView) navigationView.getHeaderView(0).findViewById(R.id.profilePicture);
 
-        /* *************************************
-         *               GENERAL               *
-         ***************************************/
-        mLoggedInStatusTextView = (TextView) findViewById(R.id.login_status);
-
         listView = (ListView) findViewById(R.id.list);
         listView.setEmptyView(findViewById(R.id.emptyList));
 
@@ -224,7 +220,7 @@ public class MainActivity extends AppCompatActivity
         final FirebaseListAdapter<ShoppingItem> fireAdapter = new FirebaseListAdapter<ShoppingItem>(this, ShoppingItem.class, R.layout.listviewitemlayout, listsRef) {
 
             @Override
-            protected void populateView(View view, ShoppingItem shoppingItem, int i) {
+            protected void populateView(View view, final ShoppingItem shoppingItem, int i) {
                 //Product Name line
                 TextView tvName = (TextView) view.findViewById(R.id.itemName);
                 tvName.setText(shoppingItem.getName());
@@ -233,12 +229,22 @@ public class MainActivity extends AppCompatActivity
                 tvQuantity.setText(shoppingItem.getQuantity() + "");
 
                 final int position = i;
-                //Button delete + delete controller
+//Button delete + delete controller
                 ImageButton btnDelete = (ImageButton) view.findViewById(R.id.itemDelete);
                 btnDelete.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         getRef(position).removeValue();
+                        Snackbar
+                                .make(coordinatorLayout, "Item: " + shoppingItem.getName() + " was removed.", Snackbar.LENGTH_INDEFINITE)
+                                .setAction("UNDO", new View.OnClickListener() {
+                                    @Override
+                                    public void onClick(View v) {
+                                        listsRef.push().setValue(shoppingItem);
+                                    }
+                                })
+                                .setActionTextColor(Color.RED)
+                                .show();
                     }
                 });
 
@@ -296,8 +302,7 @@ public class MainActivity extends AppCompatActivity
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_settings:
-                Toast.makeText(this, "Settings icon clicked!",
-                        Toast.LENGTH_SHORT).show();
+                setPreferences();
                 return true;
             case android.R.id.home:
                 Toast.makeText(this, "Application icon clicked!",
@@ -307,27 +312,54 @@ public class MainActivity extends AppCompatActivity
                 Toast.makeText(this, "About item clicked!", Toast.LENGTH_SHORT)
                         .show();
                 return true;
-            case R.id.item_delete_all:
-                Toast.makeText(this, "Delete item clicked!", Toast.LENGTH_SHORT)
-                        .show();
-                new AlertDialog.Builder(this)
-                        .setMessage("Do you really want to delete all items?")
-                        .setIcon(android.R.drawable.ic_dialog_alert)
-                        .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+case R.id.item_delete_all:
+Toast.makeText(this, "Delete item clicked!", Toast.LENGTH_SHORT)
+        .show();
+new AlertDialog.Builder(this)
+        .setMessage("Do you really want to delete all items?")
+        .setIcon(android.R.drawable.ic_dialog_alert)
+        .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int whichButton) {
+                final boolean[] failedToMakeCopy = {false};
+                final ArrayList<ShoppingItem> tempItems = new ArrayList<>();
+                listsRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        for (DataSnapshot snap : dataSnapshot.getChildren()
+                                ) {
+                            tempItems.add(snap.getValue(ShoppingItem.class));
+                        }
+                        failedToMakeCopy[0] = false;
+                    }
 
-                            public void onClick(DialogInterface dialog, int whichButton) {
-                                //Toast.makeText(MainActivity.this, "Yaay", Toast.LENGTH_SHORT).show();
-                                Snackbar snackbar = Snackbar
-                                        .make(coordinatorLayout, "Welcome to AndroidHive", Snackbar.LENGTH_LONG);
-                                snackbar.show();
+                    @Override
+                    public void onCancelled(FirebaseError firebaseError) {
+                        failedToMakeCopy[0] = true;
+                    }
+                });
+                if (!failedToMakeCopy[0])
+                    listsRef.setValue(null);
+                else {
+                    Snackbar.make(coordinatorLayout, "Items have been permanently deleted.", Snackbar.LENGTH_LONG).show();
+                    return;
+                }
+                Snackbar
+                        .make(coordinatorLayout, "All items have been deleted.", Snackbar.LENGTH_INDEFINITE)
+                        .setAction("UNDO", new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                for (ShoppingItem item : tempItems
+                                        ) {
+                                    listsRef.push().setValue(item);
+                                }
                             }
                         })
-                        .setNegativeButton(android.R.string.no, null).show();
-                return true;
-            case R.id.item_refresh:
-                Toast.makeText(this, "Refresh item clicked!", Toast.LENGTH_SHORT)
+                        .setActionTextColor(Color.RED)
                         .show();
-                return true;
+            }
+        })
+        .setNegativeButton(android.R.string.no, null).show();
+return true;
             case R.id.item_logout:
                 logout();
                 return true;
@@ -351,12 +383,6 @@ public class MainActivity extends AppCompatActivity
             return true;
         } else if (id == R.id.nav_register) {
             showRegisterDialog();
-        } else if (id == R.id.nav_gallery) {
-
-        } else if (id == R.id.nav_slideshow) {
-
-        } else if (id == R.id.nav_manage) {
-
         } else if (id == R.id.nav_share) {
 
         } else if (id == R.id.nav_send) {
@@ -394,38 +420,39 @@ public class MainActivity extends AppCompatActivity
                 sRef.createUser(email, password, new Firebase.ResultHandler() {
                     @Override
                     public void onSuccess() {
-                        try {
-                            Thread.sleep(2000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                        mAuthProgressDialog.hide();
-                        sRef.authWithPassword(email, password, new Firebase.AuthResultHandler() {
+                        final Handler handler = new Handler();
+                        handler.postDelayed(new Runnable() {
                             @Override
-                            public void onAuthenticated(AuthData authData) {
-                                setAuthenticatedUser(authData);
-                                Map<String, String> map = new HashMap<String, String>();
-                                map.put("provider", authData.getProvider());
-                                if (authData.getProviderData().containsKey("displayName")) {
-                                    String name = authData.getProviderData().get("displayName").toString();
-                                    map.put("displayName", name);
-                                }
-                                if (authData.getProviderData().containsKey("email")) {
-                                    String email = authData.getProviderData().get("email").toString();
-                                    map.put("email", email);
-                                }
-                                if (authData.getProviderData().containsKey("profileImageURL")) {
-                                    String profileImageURL = authData.getProviderData().get("profileImageURL").toString();
-                                    map.put("profileImageURL", profileImageURL);
-                                }
-                                sRef.child("users").child(authData.getUid()).setValue(map);
-                            }
+                            public void run() {
+                                mAuthProgressDialog.hide();
+                                sRef.authWithPassword(email, password, new Firebase.AuthResultHandler() {
+                                    @Override
+                                    public void onAuthenticated(AuthData authData) {
+                                        setAuthenticatedUser(authData);
+                                        Map<String, String> map = new HashMap<String, String>();
+                                        map.put("provider", authData.getProvider());
+                                        if (authData.getProviderData().containsKey("displayName")) {
+                                            String name = authData.getProviderData().get("displayName").toString();
+                                            map.put("displayName", name);
+                                        }
+                                        if (authData.getProviderData().containsKey("email")) {
+                                            String email = authData.getProviderData().get("email").toString();
+                                            map.put("email", email);
+                                        }
+                                        if (authData.getProviderData().containsKey("profileImageURL")) {
+                                            String profileImageURL = authData.getProviderData().get("profileImageURL").toString();
+                                            map.put("profileImageURL", profileImageURL);
+                                        }
+                                        sRef.child("users").child(authData.getUid()).setValue(map);
+                                    }
 
-                            @Override
-                            public void onAuthenticationError(FirebaseError firebaseError) {
-                                showErrorDialog(firebaseError.toString());
+                                    @Override
+                                    public void onAuthenticationError(FirebaseError firebaseError) {
+                                        showErrorDialog(firebaseError.toString());
+                                    }
+                                });
                             }
-                        });
+                        }, 2000);
                     }
 
                     @Override
@@ -505,43 +532,34 @@ public class MainActivity extends AppCompatActivity
         dialog.show();
     }
 
+
+    ////////////////////////////////////////////////////////////////
+    //
+    //                      SETTINGS DIALOG
+    //
+    ////////////////////////////////////////////////////////////////
+
     //This will be called when other activities in our application
     //are finished.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == 1) //exited our preference screen
+        if (requestCode == PREFERENCES_CODE) //exited our preference screen
         {
-            Toast toast =
-                    Toast.makeText(getApplicationContext(), "back from preferences", Toast.LENGTH_LONG);
-            toast.setText("back from our preferences");
-            toast.show();
-            //here you could put code to do something.......
+            //get preferences when we get back from settings
         }
         super.onActivityResult(requestCode, resultCode, data);
     }
 
-    public void setPreferences(View v) {
-        //Here we create a new activity and we instruct the
-        //Android system to start it
-        Intent intent = new Intent(this, SettingsActivity.class);
-        //startActivity(intent); //this we can use if we DONT CARE ABOUT RESULT
-
-        //we can use this, if we need to know when the user exists our preference screens
-        startActivityForResult(intent, 1);
+    public void setPreferences() {
+        Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+        startActivity(intent);
     }
 
-    public void getPreferences(View v) {
-
-        //We read the shared preferences from the
+    //Get preferences whenever we want
+    public void getPreferences() {
         SharedPreferences prefs = getSharedPreferences("my_prefs", MODE_PRIVATE);
         String email = prefs.getString("email", "");
-        String gender = prefs.getString("gender", "");
-        boolean soundEnabled = prefs.getBoolean("sound", false);
 
-        Toast.makeText(
-                this,
-                "Email: " + email + "\nGender: " + gender + "\nSound Enabled: "
-                        + soundEnabled, Toast.LENGTH_SHORT).show();
     }
 
     /**
@@ -565,12 +583,9 @@ public class MainActivity extends AppCompatActivity
             navigationView.getMenu().clear();
             navigationView.inflateMenu(R.menu.activity_main_drawer_loggedin);
 
-            /* show a provider specific status text */
-            mLoggedInStatusTextView.setVisibility(View.VISIBLE);
             String name = authData.getUid();
 
             if (name != null) {
-                mLoggedInStatusTextView.setText("Logged in as " + name + " (" + authData.getProvider() + ")");
                 userName.setText(name);
             }
             if (authData.getProviderData().containsKey("email")) {
@@ -600,7 +615,6 @@ public class MainActivity extends AppCompatActivity
             //set listview
             // setShoppingList(listsRef);
         } else {
-            mLoggedInStatusTextView.setVisibility(View.GONE);
             navigationView.getMenu().clear();
             navigationView.inflateMenu(R.menu.activity_main_drawer_loggedout);
             userEmail.setText("");

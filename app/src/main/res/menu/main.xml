@@ -9,12 +9,6 @@
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/item_refresh"
-        android:orderInCategory="2"
-        android:title="Refresh"
-        app:showAsAction="never" />
-
-    <item
         android:id="@+id/action_settings"
         android:orderInCategory="3"
         android:title="@string/action_settings"
@@ -31,9 +25,8 @@
         android:id="@+id/item_logout"
         android:orderInCategory="5"
         android:title="Logout"
-        app:showAsAction="never"
-        android:visible="false"/>
-
+        android:visible="false"
+        app:showAsAction="never" />
 
 
 </menu>
